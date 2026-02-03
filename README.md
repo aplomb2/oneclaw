@@ -2,7 +2,7 @@
 
 **One-click deployment for your AI assistant.**
 
-Deploy [Clawdbot](https://github.com/clawdbot/clawdbot) to the cloud with zero CLI knowledge.
+Deploy [OpenClaw](https://github.com/openclaw/openclaw) to the cloud with zero CLI knowledge.
 
 ## Quick Deploy
 

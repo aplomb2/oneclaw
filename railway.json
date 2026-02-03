@@ -5,7 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "clawdbot gateway --port $PORT --bind 0.0.0.0",
+    "startCommand": "openclaw gateway --port $PORT --bind 0.0.0.0",
     "healthcheckPath": "/",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",

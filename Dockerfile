@@ -1,4 +1,4 @@
-# OneClaw - Clawdbot Easy Deploy
+# OneClaw - OpenClaw Easy Deploy
 FROM node:20-slim
 
 # Install dependencies for Puppeteer/Playwright (needed for WhatsApp web)
@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y \
     libxfixes3 \
     libxrandr2 \
     xdg-utils \
+    curl \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
@@ -30,14 +31,14 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 # Create app directory
 WORKDIR /app
 
-# Install Clawdbot globally
-RUN npm install -g clawdbot
+# Install OpenClaw globally (formerly Clawdbot)
+RUN npm install -g openclaw
 
 # Create workspace directory
 RUN mkdir -p /app/workspace
 
 # Set workspace
-ENV CLAWDBOT_WORKSPACE=/app/workspace
+ENV OPENCLAW_WORKSPACE=/app/workspace
 
 # Expose gateway port
 EXPOSE 18789
@@ -47,4 +48,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s \
     CMD curl -f http://localhost:18789/ || exit 1
 
 # Start gateway
-CMD ["clawdbot", "gateway", "--port", "18789", "--bind", "0.0.0.0"]
+CMD ["openclaw", "gateway", "--port", "18789", "--bind", "0.0.0.0"]
