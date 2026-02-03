@@ -28,11 +28,16 @@ RUN apt-get update && apt-get install -y \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
+# Ensure npm global bin is in PATH
+ENV PATH="/usr/local/bin:$PATH"
+
 # Create app directory
 WORKDIR /app
 
-# Install OpenClaw globally (formerly Clawdbot)
-RUN npm install -g openclaw
+# Install OpenClaw globally and verify
+RUN npm install -g openclaw && \
+    which openclaw && \
+    openclaw --version
 
 # Create workspace directory
 RUN mkdir -p /app/workspace
@@ -40,12 +45,12 @@ RUN mkdir -p /app/workspace
 # Set workspace
 ENV OPENCLAW_WORKSPACE=/app/workspace
 
-# Expose gateway port
+# Expose gateway port (Railway uses $PORT)
 EXPOSE 18789
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s \
-    CMD curl -f http://localhost:18789/ || exit 1
+    CMD curl -f http://localhost:${PORT:-18789}/ || exit 1
 
-# Start gateway (use npx to ensure PATH)
-CMD ["npx", "openclaw", "gateway", "--port", "18789", "--bind", "0.0.0.0"]
+# Start gateway - use shell form to expand $PORT
+CMD openclaw gateway --port ${PORT:-18789} --bind 0.0.0.0
