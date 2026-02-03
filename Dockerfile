@@ -32,10 +32,10 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 WORKDIR /app
 
 # Create package.json and install openclaw locally
-RUN echo '{"name":"oneclaw","dependencies":{"openclaw":"latest"}}' > package.json && \
+RUN echo '{"name":"oneclaw","type":"module","dependencies":{"openclaw":"latest"}}' > package.json && \
     npm install && \
-    ls -la node_modules/.bin/ && \
-    ./node_modules/.bin/openclaw --version
+    ls -la node_modules/openclaw/ && \
+    node node_modules/openclaw/openclaw.mjs --version
 
 # Create workspace directory
 RUN mkdir -p /app/workspace
@@ -50,5 +50,5 @@ EXPOSE 18789
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s \
     CMD curl -f http://localhost:${PORT:-18789}/ || exit 1
 
-# Start gateway using local binary
-CMD ["./node_modules/.bin/openclaw", "gateway", "--port", "18789", "--bind", "0.0.0.0"]
+# Start gateway using node directly
+CMD ["node", "node_modules/openclaw/openclaw.mjs", "gateway", "--port", "18789", "--bind", "0.0.0.0"]
