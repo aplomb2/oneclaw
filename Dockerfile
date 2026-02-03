@@ -1,34 +1,34 @@
-# OneClaw - OpenClaw Easy Deploy v3
+# OneClaw - OpenClaw Easy Deploy v5 (forced rebuild)
 FROM node:20-slim
 
-# Install git and configure to use HTTPS
-RUN apt-get update && apt-get install -y git openssh-client && \
+# Install ALL dependencies in one layer + configure git for HTTPS
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        openssh-client \
+        chromium \
+        fonts-liberation \
+        libasound2 \
+        libatk-bridge2.0-0 \
+        libatk1.0-0 \
+        libcups2 \
+        libdbus-1-3 \
+        libdrm2 \
+        libgbm1 \
+        libgtk-3-0 \
+        libnspr4 \
+        libnss3 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxfixes3 \
+        libxrandr2 \
+        xdg-utils \
+        curl && \
+    rm -rf /var/lib/apt/lists/* && \
     git config --system url."https://github.com/".insteadOf "ssh://git@github.com/" && \
     git config --system url."https://github.com/".insteadOf "git@github.com:" && \
-    git config --system url."https://github.com/".insteadOf "git://github.com/"
-
-# Install other dependencies for Puppeteer/Playwright
-RUN apt-get install -y \
-    chromium \
-    fonts-liberation \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libcups2 \
-    libdbus-1-3 \
-    libdrm2 \
-    libgbm1 \
-    libgtk-3-0 \
-    libnspr4 \
-    libnss3 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    xdg-utils \
-    curl \
-    --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+    git config --system url."https://github.com/".insteadOf "git://github.com/" && \
+    echo "Git HTTPS config done"
 
 # Set Puppeteer to use installed Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
@@ -52,9 +52,9 @@ ENV OPENCLAW_WORKSPACE=/app/workspace
 # Expose gateway port
 EXPOSE 18789
 
-# Health check with longer timeout
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s \
     CMD curl -f http://localhost:${PORT:-18789}/ || exit 1
 
-# Start gateway using node directly
+# Start gateway
 CMD ["node", "node_modules/openclaw/openclaw.mjs", "gateway", "--port", "18789", "--bind", "0.0.0.0"]
