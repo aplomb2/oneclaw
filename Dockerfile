@@ -1,4 +1,5 @@
 # OneClaw - OpenClaw Easy Deploy
+# Cache bust: 2026-02-03-v2
 FROM node:20-slim
 
 # Install dependencies for Puppeteer/Playwright (needed for WhatsApp web)
@@ -28,16 +29,17 @@ RUN apt-get update && apt-get install -y \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Ensure npm global bin is in PATH
-ENV PATH="/usr/local/bin:$PATH"
-
 # Create app directory
 WORKDIR /app
 
-# Install OpenClaw globally and verify
-RUN npm install -g openclaw && \
-    which openclaw && \
-    openclaw --version
+# Install OpenClaw globally and verify - MUST SEE THIS IN LOGS
+RUN echo "=== Installing OpenClaw ===" && \
+    npm install -g openclaw && \
+    echo "=== Verifying installation ===" && \
+    ls -la /usr/local/bin/ && \
+    echo "PATH is: $PATH" && \
+    which openclaw || echo "openclaw not found in PATH" && \
+    openclaw --version || echo "openclaw --version failed"
 
 # Create workspace directory
 RUN mkdir -p /app/workspace
@@ -52,5 +54,5 @@ EXPOSE 18789
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s \
     CMD curl -f http://localhost:${PORT:-18789}/ || exit 1
 
-# Start gateway - use shell form to expand $PORT
-CMD openclaw gateway --port ${PORT:-18789} --bind 0.0.0.0
+# Start gateway
+CMD ["/usr/local/bin/openclaw", "gateway", "--port", "18789", "--bind", "0.0.0.0"]
