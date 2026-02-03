@@ -1,4 +1,4 @@
-# OneClaw - OpenClaw Easy Deploy v5 (forced rebuild)
+# OneClaw - OpenClaw Easy Deploy v6 (fix npm git ssh)
 FROM node:20-slim
 
 # Install ALL dependencies in one layer + configure git for HTTPS
@@ -27,7 +27,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     git config --system url."https://github.com/".insteadOf "ssh://git@github.com/" && \
     git config --system url."https://github.com/".insteadOf "git@github.com:" && \
-    git config --system url."https://github.com/".insteadOf "git://github.com/" && \
+    git config --system url."https://".insteadOf "git://" && \
+    git config --system url."https://".insteadOf "ssh://" && \
     echo "Git HTTPS config done"
 
 # Set Puppeteer to use installed Chromium
@@ -38,8 +39,13 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 WORKDIR /app
 
 # Create package.json and install openclaw locally
+# Configure npm and git to force HTTPS for all git dependencies
 RUN echo '{"name":"oneclaw","type":"module","dependencies":{"openclaw":"latest"}}' > package.json && \
-    npm install && \
+    echo "git-ssh-command=git -c url.https://github.com/.insteadOf=ssh://git@github.com/" > .npmrc && \
+    git config --global url."https://github.com/".insteadOf ssh://git@github.com/ && \
+    git config --global url."https://github.com/".insteadOf git@github.com: && \
+    git config --global url."https://".insteadOf ssh:// && \
+    GIT_SSH_COMMAND="git -c url.https://github.com/.insteadOf=ssh://git@github.com/" npm install && \
     ls -la node_modules/openclaw/ && \
     node node_modules/openclaw/openclaw.mjs --version
 
