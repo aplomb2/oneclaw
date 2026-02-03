@@ -1,9 +1,11 @@
-# OneClaw - OpenClaw Easy Deploy
+# OneClaw - OpenClaw Easy Deploy v3
 FROM node:20-slim
 
-# Install dependencies for Puppeteer/Playwright
-RUN apt-get update && apt-get install -y \
-    git \
+# Install git FIRST (needed for npm dependencies)
+RUN apt-get update && apt-get install -y git
+
+# Install other dependencies for Puppeteer/Playwright
+RUN apt-get install -y \
     chromium \
     fonts-liberation \
     libasound2 \
