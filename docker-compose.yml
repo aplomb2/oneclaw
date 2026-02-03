@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  clawdbot:
+    build: .
+    container_name: oneclaw-agent
+    ports:
+      - "18789:18789"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - CLAWDBOT_WORKSPACE=/app/workspace
+    volumes:
+      - ./workspace:/app/workspace
+      - ./config:/root/.clawdbot
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18789/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
