@@ -1,8 +1,7 @@
 # OneClaw - OpenClaw Easy Deploy
-# Cache bust: 2026-02-03-v2
 FROM node:20-slim
 
-# Install dependencies for Puppeteer/Playwright (needed for WhatsApp web)
+# Install dependencies for Puppeteer/Playwright
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
@@ -32,14 +31,11 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 # Create app directory
 WORKDIR /app
 
-# Install OpenClaw globally and verify - MUST SEE THIS IN LOGS
-RUN echo "=== Installing OpenClaw ===" && \
-    npm install -g openclaw && \
-    echo "=== Verifying installation ===" && \
-    ls -la /usr/local/bin/ && \
-    echo "PATH is: $PATH" && \
-    which openclaw || echo "openclaw not found in PATH" && \
-    openclaw --version || echo "openclaw --version failed"
+# Create package.json and install openclaw locally
+RUN echo '{"name":"oneclaw","dependencies":{"openclaw":"latest"}}' > package.json && \
+    npm install && \
+    ls -la node_modules/.bin/ && \
+    ./node_modules/.bin/openclaw --version
 
 # Create workspace directory
 RUN mkdir -p /app/workspace
@@ -47,12 +43,12 @@ RUN mkdir -p /app/workspace
 # Set workspace
 ENV OPENCLAW_WORKSPACE=/app/workspace
 
-# Expose gateway port (Railway uses $PORT)
+# Expose gateway port
 EXPOSE 18789
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s \
+# Health check with longer timeout
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s \
     CMD curl -f http://localhost:${PORT:-18789}/ || exit 1
 
-# Start gateway
-CMD ["/usr/local/bin/openclaw", "gateway", "--port", "18789", "--bind", "0.0.0.0"]
+# Start gateway using local binary
+CMD ["./node_modules/.bin/openclaw", "gateway", "--port", "18789", "--bind", "0.0.0.0"]

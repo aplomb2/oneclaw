@@ -5,9 +5,9 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "npx openclaw gateway --port $PORT --bind 0.0.0.0",
+    "startCommand": "./node_modules/.bin/openclaw gateway --port $PORT --bind 0.0.0.0",
     "healthcheckPath": "/",
-    "healthcheckTimeout": 30,
+    "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
