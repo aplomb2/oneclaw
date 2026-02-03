@@ -3,6 +3,7 @@ FROM node:20-slim
 
 # Install dependencies for Puppeteer/Playwright
 RUN apt-get update && apt-get install -y \
+    git \
     chromium \
     fonts-liberation \
     libasound2 \
