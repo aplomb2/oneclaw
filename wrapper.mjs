@@ -1,0 +1,234 @@
+#!/usr/bin/env node
+/**
+ * OneClaw Wrapper - Proxy + Health Monitor
+ *
+ * 1. Proxies HTTP/WebSocket traffic from Railway PORT to internal gateway
+ * 2. Health checks every 10 minutes
+ * 3. Reports status to OneClaw backend
+ * 4. Auto-restarts gateway if unresponsive
+ */
+
+import { spawn } from 'child_process';
+import { createServer } from 'http';
+import { createProxyServer } from 'http-proxy';
+
+// Configuration
+const EXTERNAL_PORT = parseInt(process.env.PORT, 10) || 8080;
+const INTERNAL_PORT = 18789;
+const ONECLAW_API = process.env.ONECLAW_API_URL || 'https://www.oneclaw.net/api';
+const INSTANCE_ID = process.env.ONECLAW_INSTANCE_ID;
+const INSTANCE_SECRET = process.env.ONECLAW_INSTANCE_SECRET;
+const HEALTH_CHECK_INTERVAL = 10 * 60 * 1000; // 10 minutes
+
+let gatewayProcess = null;
+let gatewayReady = false;
+let lastHealthCheck = null;
+let failedChecks = 0;
+const MAX_FAILED_CHECKS = 3;
+
+// --- Gateway Process Management ---
+
+function startGateway() {
+  console.log(`[Wrapper] Starting OpenClaw gateway on internal port ${INTERNAL_PORT}...`);
+
+  gatewayProcess = spawn('node', [
+    'node_modules/openclaw/openclaw.mjs',
+    'gateway',
+    '--port', String(INTERNAL_PORT),
+    '--bind', '127.0.0.1'
+  ], {
+    stdio: 'inherit',
+    env: process.env,
+  });
+
+  gatewayProcess.on('exit', (code) => {
+    console.log(`[Wrapper] Gateway exited with code ${code}`);
+    gatewayReady = false;
+
+    // Auto-restart after 5 seconds
+    setTimeout(() => {
+      console.log('[Wrapper] Auto-restarting gateway...');
+      startGateway();
+      reportEvent('gateway_restarted', { exitCode: code, reason: 'process_exit' });
+    }, 5000);
+  });
+
+  gatewayProcess.on('error', (err) => {
+    console.error('[Wrapper] Gateway spawn error:', err);
+    gatewayReady = false;
+  });
+
+  // Give gateway time to start
+  setTimeout(() => {
+    gatewayReady = true;
+    console.log('[Wrapper] Gateway should be ready now');
+  }, 10000);
+}
+
+function restartGateway(reason = 'manual') {
+  console.log(`[Wrapper] Restarting gateway (reason: ${reason})...`);
+
+  if (gatewayProcess) {
+    gatewayProcess.kill('SIGTERM');
+    setTimeout(() => {
+      if (gatewayProcess && !gatewayProcess.killed) {
+        gatewayProcess.kill('SIGKILL');
+      }
+    }, 10000);
+  }
+
+  reportEvent('gateway_restarted', { reason });
+}
+
+// --- Health Check ---
+
+async function checkGatewayHealth() {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(`http://127.0.0.1:${INTERNAL_PORT}/`, {
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (response.ok) {
+      failedChecks = 0;
+      lastHealthCheck = new Date();
+      console.log('[Wrapper] Health check passed');
+      await reportHeartbeat('healthy');
+      return true;
+    }
+  } catch (err) {
+    console.log(`[Wrapper] Health check failed: ${err.message}`);
+  }
+
+  failedChecks++;
+  console.log(`[Wrapper] Health check failed (${failedChecks}/${MAX_FAILED_CHECKS})`);
+
+  await reportHeartbeat('unhealthy');
+
+  if (failedChecks >= MAX_FAILED_CHECKS) {
+    console.log('[Wrapper] Gateway unresponsive, restarting...');
+    restartGateway('health_check_failed');
+    failedChecks = 0;
+  }
+
+  return false;
+}
+
+// --- Reporting to OneClaw Backend ---
+
+async function reportHeartbeat(status) {
+  if (!INSTANCE_ID || !INSTANCE_SECRET) {
+    return;
+  }
+
+  try {
+    const payload = {
+      instanceId: INSTANCE_ID,
+      timestamp: new Date().toISOString(),
+      status,
+      uptime: process.uptime(),
+      failedChecks,
+    };
+
+    const response = await fetch(`${ONECLAW_API}/agent/heartbeat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${INSTANCE_SECRET}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      console.log('[Wrapper] Heartbeat sent successfully');
+    } else {
+      console.log(`[Wrapper] Heartbeat failed: ${response.status}`);
+    }
+  } catch (err) {
+    console.error('[Wrapper] Heartbeat error:', err.message);
+  }
+}
+
+async function reportEvent(event, data = {}) {
+  if (!INSTANCE_ID || !INSTANCE_SECRET) return;
+
+  try {
+    await fetch(`${ONECLAW_API}/agent/event`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${INSTANCE_SECRET}`,
+      },
+      body: JSON.stringify({
+        instanceId: INSTANCE_ID,
+        event,
+        data,
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  } catch (err) {
+    console.error('[Wrapper] Event report error:', err.message);
+  }
+}
+
+// --- Proxy Server ---
+
+function startProxy() {
+  const proxy = createProxyServer({
+    target: `http://127.0.0.1:${INTERNAL_PORT}`,
+    ws: true,
+  });
+
+  proxy.on('error', (err, req, res) => {
+    console.error('[Wrapper] Proxy error:', err.message);
+    if (res.writeHead) {
+      res.writeHead(502, { 'Content-Type': 'text/plain' });
+      res.end('Gateway unavailable');
+    }
+  });
+
+  const server = createServer((req, res) => {
+    proxy.web(req, res);
+  });
+
+  server.on('upgrade', (req, socket, head) => {
+    proxy.ws(req, socket, head);
+  });
+
+  server.listen(EXTERNAL_PORT, '0.0.0.0', () => {
+    console.log(`[Wrapper] Proxy listening on port ${EXTERNAL_PORT}`);
+    console.log(`[Wrapper] Forwarding to gateway on port ${INTERNAL_PORT}`);
+  });
+}
+
+// --- Main ---
+
+async function main() {
+  console.log('[Wrapper] OneClaw Wrapper starting...');
+  console.log(`[Wrapper] External port: ${EXTERNAL_PORT}`);
+  console.log(`[Wrapper] Internal gateway port: ${INTERNAL_PORT}`);
+  console.log(`[Wrapper] Instance ID: ${INSTANCE_ID || 'not configured'}`);
+
+  // Start gateway first
+  startGateway();
+
+  // Wait for gateway to initialize
+  await new Promise(resolve => setTimeout(resolve, 15000));
+
+  // Start proxy server
+  startProxy();
+
+  // Start health check loop (every 10 minutes)
+  setInterval(checkGatewayHealth, HEALTH_CHECK_INTERVAL);
+
+  // Initial health check after 30 seconds
+  setTimeout(checkGatewayHealth, 30000);
+
+  console.log('[Wrapper] Wrapper started successfully');
+}
+
+main().catch(console.error);
