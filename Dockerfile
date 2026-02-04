@@ -1,4 +1,4 @@
-# OneClaw - OpenClaw Easy Deploy v13 (add config + doctor fix)
+# OneClaw - OpenClaw Easy Deploy v14 (use Railway PORT)
 FROM node:22-slim
 
 # Install ALL dependencies in one layer + configure git for HTTPS
@@ -49,10 +49,8 @@ RUN echo '{"name":"oneclaw","type":"module","dependencies":{"openclaw":"latest"}
     ls -la node_modules/openclaw/ && \
     node node_modules/openclaw/openclaw.mjs --version
 
-# Create workspace directory and config
-RUN mkdir -p /app/workspace && \
-    echo 'gateway:\n  port: 18789\n  bind: 0.0.0.0' > /app/workspace/config.yaml && \
-    cat /app/workspace/config.yaml
+# Create workspace directory
+RUN mkdir -p /app/workspace
 
 # Set workspace
 ENV OPENCLAW_WORKSPACE=/app/workspace
@@ -60,12 +58,15 @@ ENV OPENCLAW_WORKSPACE=/app/workspace
 # Expose port
 EXPOSE 18789
 
-# Create startup script - run doctor first, then gateway
-RUN printf '#!/bin/sh\nset -e\necho "[DEBUG] PORT=$PORT"\necho "[DEBUG] Running openclaw doctor --fix"\nnode node_modules/openclaw/openclaw.mjs doctor --fix || true\necho "[DEBUG] Starting openclaw gateway on port 18789"\nexec node node_modules/openclaw/openclaw.mjs gateway --port 18789 --bind 0.0.0.0\n' > /app/start.sh && chmod +x /app/start.sh && cat /app/start.sh
+# Default port for Railway
+ENV PORT=8080
+
+# Create startup script - use Railway's PORT
+RUN printf '#!/bin/sh\nset -e\nGATEWAY_PORT="${PORT:-8080}"\necho "[DEBUG] Starting openclaw gateway on port $GATEWAY_PORT"\nexec node node_modules/openclaw/openclaw.mjs gateway --port "$GATEWAY_PORT" --bind 0.0.0.0\n' > /app/start.sh && chmod +x /app/start.sh && cat /app/start.sh
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s \
-    CMD curl -f http://localhost:18789/ || exit 1
+    CMD curl -f http://localhost:${PORT:-8080}/ || exit 1
 
-# Start gateway on fixed port 18789
+# Start gateway
 CMD ["/bin/sh", "/app/start.sh"]
