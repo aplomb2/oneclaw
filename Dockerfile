@@ -1,4 +1,4 @@
-# OneClaw - OpenClaw Easy Deploy v6 (fix npm git ssh)
+# OneClaw - OpenClaw Easy Deploy v7 (with Agent)
 FROM node:20-slim
 
 # Install ALL dependencies in one layer + configure git for HTTPS
@@ -39,7 +39,6 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 WORKDIR /app
 
 # Create package.json and install openclaw locally
-# Configure npm and git to force HTTPS for all git dependencies
 RUN echo '{"name":"oneclaw","type":"module","dependencies":{"openclaw":"latest"}}' > package.json && \
     echo "git-ssh-command=git -c url.https://github.com/.insteadOf=ssh://git@github.com/" > .npmrc && \
     git config --global url."https://github.com/".insteadOf ssh://git@github.com/ && \
@@ -52,15 +51,22 @@ RUN echo '{"name":"oneclaw","type":"module","dependencies":{"openclaw":"latest"}
 # Create workspace directory
 RUN mkdir -p /app/workspace
 
+# Copy agent
+COPY agent/index.mjs /app/agent/index.mjs
+
 # Set workspace
 ENV OPENCLAW_WORKSPACE=/app/workspace
 
-# Expose gateway port
+# OneClaw API URL (for heartbeat)
+ENV ONECLAW_API_URL=https://www.oneclaw.net/api
+
+# Expose ports (gateway + agent)
 EXPOSE 18789
+EXPOSE 18790
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s \
     CMD curl -f http://localhost:${PORT:-18789}/ || exit 1
 
-# Start gateway
-CMD ["node", "node_modules/openclaw/openclaw.mjs", "gateway", "--port", "18789", "--bind", "0.0.0.0"]
+# Start agent (which manages gateway)
+CMD ["node", "/app/agent/index.mjs"]
