@@ -41,11 +41,11 @@ WORKDIR /app
 
 # Create package.json and install openclaw locally
 RUN echo '{"name":"oneclaw","type":"module","dependencies":{"openclaw":"latest"}}' > package.json && \
-    echo "git-ssh-command=git -c url.https://github.com/.insteadOf=ssh://git@github.com/" > .npmrc && \
     git config --global url."https://github.com/".insteadOf ssh://git@github.com/ && \
     git config --global url."https://github.com/".insteadOf git@github.com: && \
+    git config --global url."https://".insteadOf git:// && \
     git config --global url."https://".insteadOf ssh:// && \
-    GIT_SSH_COMMAND="git -c url.https://github.com/.insteadOf=ssh://git@github.com/" npm install && \
+    npm install --verbose 2>&1 && \
     ls -la node_modules/openclaw/ && \
     node node_modules/openclaw/openclaw.mjs --version
 
