@@ -1,4 +1,4 @@
-# OneClaw - OpenClaw Easy Deploy v10 (direct gateway)
+# OneClaw - OpenClaw Easy Deploy v11 (fix port)
 FROM node:22-slim
 
 # Install ALL dependencies in one layer + configure git for HTTPS
@@ -58,9 +58,12 @@ ENV OPENCLAW_WORKSPACE=/app/workspace
 # Expose port
 EXPOSE 18789
 
+# Create startup script
+RUN echo '#!/bin/sh\necho "Starting gateway on port: $PORT"\nexec node node_modules/openclaw/openclaw.mjs gateway --port "${PORT:-18789}" --bind 0.0.0.0' > /app/start.sh && chmod +x /app/start.sh
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s \
     CMD curl -f http://localhost:${PORT:-18789}/ || exit 1
 
-# Start gateway directly - Railway sets PORT env var
-CMD node node_modules/openclaw/openclaw.mjs gateway --port ${PORT:-18789} --bind 0.0.0.0
+# Start gateway
+CMD ["/bin/sh", "/app/start.sh"]
