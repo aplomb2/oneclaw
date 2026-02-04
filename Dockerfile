@@ -1,4 +1,4 @@
-# OneClaw - OpenClaw Easy Deploy v12 (hardcode port 18789)
+# OneClaw - OpenClaw Easy Deploy v13 (add config + doctor fix)
 FROM node:22-slim
 
 # Install ALL dependencies in one layer + configure git for HTTPS
@@ -49,8 +49,10 @@ RUN echo '{"name":"oneclaw","type":"module","dependencies":{"openclaw":"latest"}
     ls -la node_modules/openclaw/ && \
     node node_modules/openclaw/openclaw.mjs --version
 
-# Create workspace directory
-RUN mkdir -p /app/workspace
+# Create workspace directory and config
+RUN mkdir -p /app/workspace && \
+    echo 'gateway:\n  port: 18789\n  bind: 0.0.0.0' > /app/workspace/config.yaml && \
+    cat /app/workspace/config.yaml
 
 # Set workspace
 ENV OPENCLAW_WORKSPACE=/app/workspace
@@ -58,8 +60,8 @@ ENV OPENCLAW_WORKSPACE=/app/workspace
 # Expose port
 EXPOSE 18789
 
-# Create startup script with debug
-RUN printf '#!/bin/sh\nset -e\necho "[DEBUG] PORT=$PORT"\necho "[DEBUG] Starting openclaw gateway..."\nexec node node_modules/openclaw/openclaw.mjs gateway --port 18789 --bind 0.0.0.0\n' > /app/start.sh && chmod +x /app/start.sh && cat /app/start.sh
+# Create startup script - run doctor first, then gateway
+RUN printf '#!/bin/sh\nset -e\necho "[DEBUG] PORT=$PORT"\necho "[DEBUG] Running openclaw doctor --fix"\nnode node_modules/openclaw/openclaw.mjs doctor --fix || true\necho "[DEBUG] Starting openclaw gateway on port 18789"\nexec node node_modules/openclaw/openclaw.mjs gateway --port 18789 --bind 0.0.0.0\n' > /app/start.sh && chmod +x /app/start.sh && cat /app/start.sh
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s \
