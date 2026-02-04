@@ -4,6 +4,7 @@ FROM node:20-slim
 # Install ALL dependencies in one layer + configure git for HTTPS
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        ca-certificates \
         git \
         openssh-client \
         chromium \
