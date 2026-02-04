@@ -1,4 +1,4 @@
-# OneClaw - OpenClaw Easy Deploy v9 (Node 22)
+# OneClaw - OpenClaw Easy Deploy v10 (direct gateway)
 FROM node:22-slim
 
 # Install ALL dependencies in one layer + configure git for HTTPS
@@ -52,22 +52,15 @@ RUN echo '{"name":"oneclaw","type":"module","dependencies":{"openclaw":"latest"}
 # Create workspace directory
 RUN mkdir -p /app/workspace
 
-# Copy agent
-COPY agent/index.mjs /app/agent/index.mjs
-
 # Set workspace
 ENV OPENCLAW_WORKSPACE=/app/workspace
 
-# OneClaw API URL (for heartbeat)
-ENV ONECLAW_API_URL=https://www.oneclaw.net/api
-
-# Expose ports (gateway + agent)
+# Expose port
 EXPOSE 18789
-EXPOSE 18790
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s \
     CMD curl -f http://localhost:${PORT:-18789}/ || exit 1
 
-# Start agent (which manages gateway)
-CMD ["node", "/app/agent/index.mjs"]
+# Start gateway directly - Railway sets PORT env var
+CMD node node_modules/openclaw/openclaw.mjs gateway --port ${PORT:-18789} --bind 0.0.0.0
