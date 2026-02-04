@@ -1,5 +1,5 @@
-# OneClaw - OpenClaw Easy Deploy v7 (with Agent)
-FROM node:20-slim
+# OneClaw - OpenClaw Easy Deploy v9 (Node 22)
+FROM node:22-slim
 
 # Install ALL dependencies in one layer + configure git for HTTPS
 RUN apt-get update && \
