@@ -28,6 +28,21 @@ let lastHealthCheck = null;
 let failedChecks = 0;
 const MAX_FAILED_CHECKS = 3;
 
+// --- Platform Detection ---
+
+/**
+ * Detect which messaging platforms are configured
+ */
+function detectPlatforms() {
+  return {
+    telegram: !!process.env.TELEGRAM_BOT_TOKEN,
+    discord: !!process.env.DISCORD_TOKEN || !!process.env.DISCORD_BOT_TOKEN,
+    whatsapp: !!process.env.WHATSAPP_PHONE_NUMBER || !!process.env.WHATSAPP_ENABLED,
+    slack: !!process.env.SLACK_BOT_TOKEN,
+    signal: !!process.env.SIGNAL_PHONE_NUMBER,
+  };
+}
+
 // --- Template Loading ---
 
 /**
@@ -118,6 +133,31 @@ function restartGateway(reason = 'manual') {
   reportEvent('gateway_restarted', { reason });
 }
 
+// --- Gateway Stats Collection ---
+
+/**
+ * Try to get stats from the gateway's internal API
+ * Clawdbot exposes /status endpoint that may include stats
+ */
+async function getGatewayStats() {
+  try {
+    const response = await fetch(`http://127.0.0.1:${INTERNAL_PORT}/status`, {
+      timeout: 5000,
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        messagesToday: data.stats?.messagesToday || data.messagesToday || 0,
+        messagesTotal: data.stats?.messagesTotal || data.messagesTotal || 0,
+        tokensToday: data.stats?.tokensToday || data.tokensToday || 0,
+      };
+    }
+  } catch (err) {
+    // Gateway might not expose stats, that's ok
+  }
+  return null;
+}
+
 // --- Health Check ---
 
 async function checkGatewayHealth() {
@@ -164,12 +204,17 @@ async function reportHeartbeat(status) {
   }
 
   try {
+    const platforms = detectPlatforms();
+    const stats = await getGatewayStats();
     const payload = {
       instanceId: INSTANCE_ID,
       timestamp: new Date().toISOString(),
       status,
       uptime: process.uptime(),
       failedChecks,
+      platforms,
+      templateId: process.env.ONECLAW_TEMPLATE_ID || null,
+      stats, // May be null if gateway doesn't expose stats
     };
 
     const response = await fetch(`${ONECLAW_API}/agent/heartbeat`, {
