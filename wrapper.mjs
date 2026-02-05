@@ -11,6 +11,8 @@
 import { spawn } from 'child_process';
 import { createServer } from 'http';
 import { createProxyServer } from 'http-proxy';
+import { writeFileSync, existsSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
 
 // Configuration
 const EXTERNAL_PORT = parseInt(process.env.PORT, 10) || 8080;
@@ -25,6 +27,42 @@ let gatewayReady = false;
 let lastHealthCheck = null;
 let failedChecks = 0;
 const MAX_FAILED_CHECKS = 3;
+
+// --- Template Loading ---
+
+/**
+ * Apply OneClaw template if configured
+ * If ONECLAW_SOUL_CONTENT is set, decode and write to SOUL.md
+ * This only happens if user selected a template during setup
+ * If not set, Clawdbot uses its default behavior
+ */
+function applyTemplateIfConfigured() {
+  const soulContent = process.env.ONECLAW_SOUL_CONTENT;
+  const templateId = process.env.ONECLAW_TEMPLATE_ID;
+  
+  if (!soulContent) {
+    console.log('[Wrapper] No template configured, using default Clawdbot behavior');
+    return;
+  }
+  
+  try {
+    // Decode base64 content
+    const decoded = Buffer.from(soulContent, 'base64').toString('utf-8');
+    
+    // Determine workspace directory (where Clawdbot runs)
+    const workspaceDir = process.env.CLAWDBOT_WORKSPACE || process.cwd();
+    const soulPath = join(workspaceDir, 'SOUL.md');
+    
+    // Write SOUL.md
+    writeFileSync(soulPath, decoded, 'utf-8');
+    console.log(`[Wrapper] Applied template "${templateId}" - wrote SOUL.md (${decoded.length} bytes)`);
+    
+    // Report template applied
+    reportEvent('template_applied', { templateId, soulBytes: decoded.length });
+  } catch (err) {
+    console.error('[Wrapper] Failed to apply template:', err.message);
+  }
+}
 
 // --- Gateway Process Management ---
 
@@ -212,8 +250,12 @@ async function main() {
   console.log(`[Wrapper] External port: ${EXTERNAL_PORT}`);
   console.log(`[Wrapper] Internal gateway port: ${INTERNAL_PORT}`);
   console.log(`[Wrapper] Instance ID: ${INSTANCE_ID || 'not configured'}`);
+  console.log(`[Wrapper] Template ID: ${process.env.ONECLAW_TEMPLATE_ID || 'none'}`);
 
-  // Start gateway first
+  // Apply template if configured (before gateway starts)
+  applyTemplateIfConfigured();
+
+  // Start gateway
   startGateway();
 
   // Wait for gateway to initialize
