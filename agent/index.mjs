@@ -293,7 +293,11 @@ async function executeCommand(cmd) {
       
     case 'get_logs':
       return await getRecentLogs(cmd.lines || 100);
-      
+
+    case 'apply_template':
+      await applyTemplate(cmd);
+      break;
+
     default:
       console.log('[Agent] Unknown command:', cmd.type);
   }
@@ -320,6 +324,29 @@ async function updateConfig(newConfig) {
     reportEvent('config_updated', {});
     return { success: true };
   } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+async function applyTemplate(cmd) {
+  try {
+    console.log(`[Agent] Applying template: ${cmd.templateId}`);
+
+    // Write SOUL.md (bot personality)
+    if (cmd.soulMd) {
+      const soulPath = join(WORKSPACE_PATH, 'SOUL.md');
+      await writeFile(soulPath, cmd.soulMd, 'utf-8');
+      console.log('[Agent] SOUL.md updated');
+    }
+
+    // Restart gateway to apply the new personality
+    await restartGateway('template_applied');
+
+    reportEvent('template_applied', { templateId: cmd.templateId });
+    console.log(`[Agent] Template ${cmd.templateId} applied successfully`);
+    return { success: true };
+  } catch (err) {
+    console.error('[Agent] Failed to apply template:', err);
     return { success: false, error: err.message };
   }
 }
